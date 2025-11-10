@@ -1,6 +1,6 @@
 # dir2md
 
-Dump directory structure and text contents into a single Markdown file for easy sharing and review.
+Dump directory structure and text contents into a single Markdown file for easy sharing and review (especially for LLMs). Includes some basic default filters to avoid dumping binary files and directories like `node_modules`.
 
 ## Installation
 
