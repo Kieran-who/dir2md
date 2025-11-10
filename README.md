@@ -17,7 +17,7 @@ Using [uv](https://uv.run/) to install directly from the repository:
 uv tool install .
 ```
 
-Using [pipx](https://pipxproject.github.io/pipx/) to install from PyPI:
+Using [pipx](https://pipxproject.github.io/pipx/) to install:
 
 ```bash
 pipx install .
