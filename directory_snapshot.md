@@ -1,15 +1,21 @@
 # Snapshot of dir2md
 
-Generated: 2025-11-10 16:03:30
+Generated: 2026-01-09 18:20:56
 
 ## Directory tree
 
 ```text
 .
 ├── src/
-│   └── dir2md/
-│       ├── __init__.py
-│       └── cli.py
+│   ├── dir2md/
+│   │   ├── __init__.py
+│   │   └── cli.py
+│   └── dir2md.egg-info/
+│       ├── dependency_links.txt
+│       ├── entry_points.txt
+│       ├── PKG-INFO
+│       ├── SOURCES.txt
+│       └── top_level.txt
 ├── LICENSE
 ├── pyproject.toml
 └── README.md
@@ -20,7 +26,7 @@ Generated: 2025-11-10 16:03:30
 ### src/dir2md/__init__.py
 
 ```python
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 ```
 
 ### src/dir2md/cli.py
@@ -29,6 +35,7 @@ __version__ = "0.1.0"
 import argparse
 from collections.abc import Iterable
 from datetime import datetime
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Final
 
@@ -79,6 +86,13 @@ def looks_binary(p: Path) -> bool:
     except Exception:
         return True
 
+def matches_any_pattern(rel_path: str, patterns: list[str]) -> bool:
+    """Check if relative path matches any of the given glob patterns."""
+    for pattern in patterns:
+        if fnmatch(rel_path, pattern):
+            return True
+    return False
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Dump directory structure and text file contents to Markdown."
@@ -96,6 +110,10 @@ def main() -> None:
                         help='Only include files with these extensions (e.g. .py .ts .md or py ts md)')
     parser.add_argument('--exclude-ext', nargs='*', default=None,
                         help='Exclude files with these extensions (e.g. .log .md). Binaries are excluded by default.')
+    parser.add_argument('-p', '--pattern', nargs='*', default=None,
+                        help='Glob patterns to include files (e.g. "*/files.*.ts" "src/**/*.py")')
+    parser.add_argument('-P', '--exclude-pattern', nargs='*', default=None,
+                        help='Glob patterns to exclude files (e.g. "__tests__/*" "*.test.ts")')
 
     args: argparse.Namespace = parser.parse_args()
 
@@ -105,6 +123,8 @@ def main() -> None:
 
     include_exts: set[str] = normalise_exts(args.include_ext)
     exclude_exts: set[str] = normalise_exts(args.exclude_ext) | set(DEFAULT_BINARY_EXTS)
+    include_patterns: list[str] | None = args.pattern
+    exclude_patterns: list[str] | None = args.exclude_pattern
 
     def is_hidden(p: Path) -> bool:
         return p.name.startswith('.')
@@ -148,6 +168,11 @@ def main() -> None:
                 if ext in exclude_exts:
                     continue
                 if looks_binary(e):
+                    continue
+                rel_path: str = e.relative_to(root).as_posix()
+                if include_patterns and not matches_any_pattern(rel_path, include_patterns):
+                    continue
+                if exclude_patterns and matches_any_pattern(rel_path, exclude_patterns):
                     continue
                 collected_files.append(e)
 
@@ -205,6 +230,135 @@ if __name__ == '__main__':
     main()
 ```
 
+### src/dir2md.egg-info/dependency_links.txt
+
+```
+
+```
+
+### src/dir2md.egg-info/entry_points.txt
+
+```
+[console_scripts]
+dir2md = dir2md.cli:main
+```
+
+### src/dir2md.egg-info/PKG-INFO
+
+```
+Metadata-Version: 2.4
+Name: dir2md
+Version: 0.1.1
+Summary: Dump directory tree and text contents to Markdown
+Author: Kieran Lindsay
+License: MIT
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Dynamic: license-file
+
+# dir2md
+
+Dump directory structure and text contents into a single Markdown file for easy sharing and review (especially for LLMs). Includes some basic default filters to avoid dumping binary files and directories like `node_modules`.
+
+## Installation
+
+Clone the repository:
+
+```bash
+git clone https://github.com/kieranlindsay/dir2md.git
+cd dir2md
+```
+
+Using [uv](https://uv.run/) to install directly from the repository:
+
+```bash
+uv tool install .
+```
+
+Using [pipx](https://pipxproject.github.io/pipx/) to install:
+
+```bash
+pipx install .
+```
+
+## Usage
+
+Run `dir2md --help` to see every available flag. Common examples are below:
+
+- **Basic dump:**
+  ```bash
+  dir2md
+  ```
+- **Custom output file:**
+  ```bash
+  dir2md -o my_dump.md
+  ```
+- **Include only certain file types:**
+  ```bash
+  dir2md --include-ext py ts js
+  ```
+- **Exclude specific extensions:**
+  ```bash
+  dir2md --exclude-ext log md
+  ```
+- **Exclude directories:**
+  ```bash
+  dir2md --exclude .git node_modules .next dist
+  ```
+- **Cap per-file size (recommended for large repos):**
+  ```bash
+  dir2md --max-size 262144
+  ```
+- **Include dotfiles:**
+  ```bash
+  dir2md --show-hidden
+  ```
+- **Filter by glob pattern:**
+  ```bash
+  dir2md -p "*/files.*.ts"
+  ```
+- **Multiple patterns:**
+  ```bash
+  dir2md -p "*/*.routes.ts" "*/*.controller.ts"
+  ```
+- **Recursive pattern matching:**
+  ```bash
+  dir2md -p "src/**/*.py"
+  ```
+
+Mix and match these options to tailor the Markdown output to your workflow.
+
+## Example Output
+
+[directory_snapshot.md](./directory_snapshot.md)
+
+## License
+
+Released under the [MIT License](./LICENSE).
+```
+
+### src/dir2md.egg-info/SOURCES.txt
+
+```
+LICENSE
+README.md
+pyproject.toml
+src/dir2md/__init__.py
+src/dir2md/cli.py
+src/dir2md.egg-info/PKG-INFO
+src/dir2md.egg-info/SOURCES.txt
+src/dir2md.egg-info/dependency_links.txt
+src/dir2md.egg-info/entry_points.txt
+src/dir2md.egg-info/top_level.txt
+```
+
+### src/dir2md.egg-info/top_level.txt
+
+```
+dir2md
+```
+
 ### LICENSE
 
 ```
@@ -228,7 +382,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dir2md"
-version = "0.1.0"
+version = "0.1.1"
 description = "Dump directory tree and text contents to Markdown"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -304,6 +458,34 @@ Run `dir2md --help` to see every available flag. Common examples are below:
 - **Include dotfiles:**
   ```bash
   dir2md --show-hidden
+  ```
+- **Filter by glob pattern:**
+  ```bash
+  dir2md -p "*/files.*.ts"
+  ```
+- **Multiple patterns:**
+  ```bash
+  dir2md -p "*/*.routes.ts" "*/*.controller.ts"
+  ```
+- **Recursive pattern matching:**
+  ```bash
+  dir2md -p "src/**/*.py"
+  ```
+- **Exclude using pattern matching:**
+
+  ```bash
+  # E.g. exclude all files in __tests__ directories
+  dir2md -P "__tests__/*"
+
+  # Exclude test files at any depth
+  dir2md -P "**/*.test.ts" "**/*.spec.ts"
+  ```
+
+- **Combine include and exclude patterns:**
+
+  ```bash
+  dir2md -p "src/**/*.ts" -P "**/*.test.ts" "__tests__/*"
+
   ```
 
 Mix and match these options to tailor the Markdown output to your workflow.

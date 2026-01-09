@@ -55,6 +55,34 @@ Run `dir2md --help` to see every available flag. Common examples are below:
   ```bash
   dir2md --show-hidden
   ```
+- **Filter by glob pattern:**
+  ```bash
+  dir2md -p "*/files.*.ts"
+  ```
+- **Multiple patterns:**
+  ```bash
+  dir2md -p "*/*.routes.ts" "*/*.controller.ts"
+  ```
+- **Recursive pattern matching:**
+  ```bash
+  dir2md -p "src/**/*.py"
+  ```
+- **Exclude using pattern matching:**
+
+  ```bash
+  # E.g. exclude all files in __tests__ directories
+  dir2md -P "__tests__/*"
+
+  # Exclude test files at any depth
+  dir2md -P "**/*.test.ts" "**/*.spec.ts"
+  ```
+
+- **Combine include and exclude patterns:**
+
+  ```bash
+  dir2md -p "src/**/*.ts" -P "**/*.test.ts" "__tests__/*"
+
+  ```
 
 Mix and match these options to tailor the Markdown output to your workflow.
 

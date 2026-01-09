@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dir2md"
-version = "0.1.0"
+version = "0.1.1"
 description = "Dump directory tree and text contents to Markdown"
 readme = "README.md"
 requires-python = ">=3.8"

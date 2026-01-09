@@ -1,6 +1,7 @@
 import argparse
 from collections.abc import Iterable
 from datetime import datetime
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Final
 
@@ -51,6 +52,13 @@ def looks_binary(p: Path) -> bool:
     except Exception:
         return True
 
+def matches_any_pattern(rel_path: str, patterns: list[str]) -> bool:
+    """Check if relative path matches any of the given glob patterns."""
+    for pattern in patterns:
+        if fnmatch(rel_path, pattern):
+            return True
+    return False
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Dump directory structure and text file contents to Markdown."
@@ -68,6 +76,10 @@ def main() -> None:
                         help='Only include files with these extensions (e.g. .py .ts .md or py ts md)')
     parser.add_argument('--exclude-ext', nargs='*', default=None,
                         help='Exclude files with these extensions (e.g. .log .md). Binaries are excluded by default.')
+    parser.add_argument('-p', '--pattern', nargs='*', default=None,
+                        help='Glob patterns to include files (e.g. "*/files.*.ts" "src/**/*.py")')
+    parser.add_argument('-P', '--exclude-pattern', nargs='*', default=None,
+                        help='Glob patterns to exclude files (e.g. "__tests__/*" "*.test.ts")')
 
     args: argparse.Namespace = parser.parse_args()
 
@@ -77,6 +89,8 @@ def main() -> None:
 
     include_exts: set[str] = normalise_exts(args.include_ext)
     exclude_exts: set[str] = normalise_exts(args.exclude_ext) | set(DEFAULT_BINARY_EXTS)
+    include_patterns: list[str] | None = args.pattern
+    exclude_patterns: list[str] | None = args.exclude_pattern
 
     def is_hidden(p: Path) -> bool:
         return p.name.startswith('.')
@@ -120,6 +134,11 @@ def main() -> None:
                 if ext in exclude_exts:
                     continue
                 if looks_binary(e):
+                    continue
+                rel_path: str = e.relative_to(root).as_posix()
+                if include_patterns and not matches_any_pattern(rel_path, include_patterns):
+                    continue
+                if exclude_patterns and matches_any_pattern(rel_path, exclude_patterns):
                     continue
                 collected_files.append(e)
 
