@@ -4,6 +4,7 @@ from datetime import datetime
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Final
+import time
 
 DEFAULT_EXCLUDES: Final[set[str]] = {'.git', 'node_modules', '.venv', 'venv', '__pycache__', 'dist', 'build'}
 DEFAULT_BINARY_EXTS: Final[set[str]] = {
@@ -59,6 +60,25 @@ def matches_any_pattern(rel_path: str, patterns: list[str]) -> bool:
             return True
     return False
 
+def file_passes_time_filter(p: Path, modified_cutoff: float | None, created_cutoff: float | None) -> bool:
+    """Check if file passes the time-based filters."""
+    if modified_cutoff is None and created_cutoff is None:
+        return True
+    
+    stat = p.stat()
+    
+    if modified_cutoff is not None and stat.st_mtime >= modified_cutoff:
+        return True
+    
+    if created_cutoff is not None:
+        # st_birthtime is macOS-specific; fall back to st_ctime on other platforms
+        ctime = getattr(stat, 'st_birthtime', stat.st_ctime)
+        if ctime >= created_cutoff:
+            return True
+    
+    # If either filter was specified but neither passed, exclude the file
+    return False
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Dump directory structure and text file contents to Markdown."
@@ -80,6 +100,10 @@ def main() -> None:
                         help='Glob patterns to include files (e.g. "*/files.*.ts" "src/**/*.py")')
     parser.add_argument('-P', '--exclude-pattern', nargs='*', default=None,
                         help='Glob patterns to exclude files (e.g. "__tests__/*" "*.test.ts")')
+    parser.add_argument('-m', '--modified-within', type=int, default=None, metavar='MINUTES',
+                        help='Only include files modified within the last N minutes')
+    parser.add_argument('-c', '--created-within', type=int, default=None, metavar='MINUTES',
+                        help='Only include files created within the last N minutes')
 
     args: argparse.Namespace = parser.parse_args()
 
@@ -91,6 +115,16 @@ def main() -> None:
     exclude_exts: set[str] = normalise_exts(args.exclude_ext) | set(DEFAULT_BINARY_EXTS)
     include_patterns: list[str] | None = args.pattern
     exclude_patterns: list[str] | None = args.exclude_pattern
+
+    # Calculate time cutoffs
+    now = time.time()
+    modified_cutoff: float | None = None
+    created_cutoff: float | None = None
+    
+    if args.modified_within is not None:
+        modified_cutoff = now - (args.modified_within * 60)
+    if args.created_within is not None:
+        created_cutoff = now - (args.created_within * 60)
 
     def is_hidden(p: Path) -> bool:
         return p.name.startswith('.')
@@ -140,16 +174,18 @@ def main() -> None:
                     continue
                 if exclude_patterns and matches_any_pattern(rel_path, exclude_patterns):
                     continue
+                if not file_passes_time_filter(e, modified_cutoff, created_cutoff):
+                    continue
                 collected_files.append(e)
 
     tree_lines.append('.')
     walk(root)
 
-    now: str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    now_str: str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     with outfile.open('w', encoding='utf-8') as f:
         f.write(f"# Snapshot of {root.name}\n\n")
-        f.write(f"Generated: {now}\n\n")
+        f.write(f"Generated: {now_str}\n\n")
 
         f.write("## Directory tree\n\n")
         f.write("```text\n")

@@ -84,6 +84,29 @@ Run `dir2md --help` to see every available flag. Common examples are below:
 
   ```
 
+- **Files modified in the last 30 minutes**
+
+  ```bash
+  dir2md -m 30
+  ```
+
+- **Files created in the last hour**
+
+  ```bash
+  dir2md -c 60
+  ```
+
+- **Either modified OR created in the last 2 hours**
+
+  ```bash
+  dir2md -m 120 -c 120
+  ```
+
+- **Combine with other filters - recent TypeScript changes**
+  ```bash
+  dir2md --include-ext ts -m 60
+  ```
+
 Mix and match these options to tailor the Markdown output to your workflow.
 
 ## Example Output
