@@ -1,9 +1,10 @@
 import argparse
+import sys
 from collections.abc import Iterable
 from datetime import datetime
 from fnmatch import fnmatch
 from pathlib import Path
-from typing import Final
+from typing import Final, TextIO
 import time
 
 DEFAULT_EXCLUDES: Final[set[str]] = {'.git', 'node_modules', '.venv', 'venv', '__pycache__', 'dist', 'build'}
@@ -79,12 +80,58 @@ def file_passes_time_filter(p: Path, modified_cutoff: float | None, created_cuto
     # If either filter was specified but neither passed, exclude the file
     return False
 
+def write_output(f: TextIO, root: Path, tree_lines: list[str], collected_files: list[Path], max_size: int | None) -> None:
+    """Write the markdown output to the given file handle."""
+    now_str: str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    f.write(f"# Snapshot of {root.name}\n\n")
+    f.write(f"Generated: {now_str}\n\n")
+
+    f.write("## Directory tree\n\n")
+    f.write("```text\n")
+    for line in tree_lines:
+        f.write(line + "\n")
+    f.write("```\n\n")
+
+    f.write("## File contents\n\n")
+    for p in collected_files:
+        rel: str = p.relative_to(root).as_posix()
+
+        size: int = p.stat().st_size
+        truncated: bool = False
+
+        if max_size is not None and size > max_size:
+            with p.open('rb') as rf:
+                data: bytes = rf.read(max_size)
+            truncated = True
+        else:
+            with p.open('rb') as rf:
+                data = rf.read()
+        
+        try:
+            text: str = data.decode('utf-8', errors='replace')
+        except Exception:
+            text = data.decode('latin-1', errors='replace')
+
+        lang: str = detect_lang(p)
+
+        f.write(f"### {rel}\n\n")
+        f.write(f"```{lang}\n")
+        f.write(text)
+        if not text.endswith('\n'):
+            f.write("\n")
+        f.write("```\n\n")
+        if truncated:
+            f.write(f"> Note: truncated to {max_size} bytes from {size} bytes.\n\n")
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Dump directory structure and text file contents to Markdown."
     )
     parser.add_argument('-o', '--output', default='directory_snapshot.md',
                         help='Output Markdown filename (default: directory_snapshot.md)')
+    parser.add_argument('--stdout', action='store_true',
+                        help='Print output to console instead of writing to a file')
     parser.add_argument('--exclude', nargs='*', default=list(DEFAULT_EXCLUDES),
                         help='Names to exclude anywhere in the path (dirs or files)')
     parser.add_argument('--max-size', type=int, default=None,
@@ -132,7 +179,7 @@ def main() -> None:
     def skip(e: Path) -> bool:
         if e.is_symlink():
             return True
-        if e == outfile:
+        if not args.stdout and e == outfile:
             return True
         for part in e.parts:
             if part in excludes:
@@ -181,52 +228,12 @@ def main() -> None:
     tree_lines.append('.')
     walk(root)
 
-    now_str: str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-    with outfile.open('w', encoding='utf-8') as f:
-        f.write(f"# Snapshot of {root.name}\n\n")
-        f.write(f"Generated: {now_str}\n\n")
-
-        f.write("## Directory tree\n\n")
-        f.write("```text\n")
-        for line in tree_lines:
-            f.write(line + "\n")
-        f.write("```\n\n")
-
-        f.write("## File contents\n\n")
-        for p in collected_files:
-            rel: str = p.relative_to(root).as_posix()
-
-            size: int = p.stat().st_size
-            truncated: bool = False
-
-            max_size: int | None = args.max_size
-
-            if max_size is not None and size > max_size:
-                with p.open('rb') as rf:
-                    data: bytes = rf.read(max_size)
-                truncated = True
-            else:
-                with p.open('rb') as rf:
-                    data = rf.read()
-            
-            try:
-                text: str = data.decode('utf-8', errors='replace')
-            except Exception:
-                text = data.decode('latin-1', errors='replace')
-
-            lang: str = detect_lang(p)
-
-            f.write(f"### {rel}\n\n")
-            f.write(f"```{lang}\n")
-            f.write(text)
-            if not text.endswith('\n'):
-                f.write("\n")
-            f.write("```\n\n")
-            if truncated:
-                f.write(f"> Note: truncated to {args.max_size} bytes from {size} bytes.\n\n")
-
-    print(f"Wrote {outfile}")
+    if args.stdout:
+        write_output(sys.stdout, root, tree_lines, collected_files, args.max_size)
+    else:
+        with outfile.open('w', encoding='utf-8') as f:
+            write_output(f, root, tree_lines, collected_files, args.max_size)
+        print(f"Wrote {outfile}")
 
 if __name__ == '__main__':
     main()
